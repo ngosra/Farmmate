@@ -1,0 +1,11 @@
+target-version = "py312"
+line-length = 100
+src = ["."]
+
+[lint]
+select = ["E", "F", "I", "UP"]
+
+[lint.per-file-ignores]
+"config/settings/local.py" = ["E402"]
+"config/settings/test.py" = ["E402"]
+"**/migrations/*.py" = ["E501", "I001"]
