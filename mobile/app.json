@@ -7,8 +7,26 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "FarmMate uses the camera to scan batch QR codes.",
+        "NSLocationWhenInUseUsageDescription": "FarmMate adds your GPS position to a farm activity when you ask it to."
+      }
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FarmMate uses the camera to scan batch QR codes."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FarmMate adds your GPS position to a farm activity when you ask it to."
+        }
+      ]
+    ],
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0AB187",
