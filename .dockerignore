@@ -1,0 +1,9 @@
+.git
+.venv
+**/.venv
+**/node_modules
+**/.env
+**/media
+**/*.sqlite3
+web/dist
+mobile/.expo
