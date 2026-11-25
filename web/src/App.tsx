@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { confirmPasswordReset, requestPasswordReset } from './api'
 import { AuthProvider } from './auth'
 import { useAuth } from './useAuth'
@@ -6,40 +6,30 @@ import {
   AssistantPage,
   CompliancePage,
   DashboardPage,
+  FarmActivitiesPage,
   FarmersPage,
   FarmsPage,
   InspectionsPage,
   InventoryPage,
   ProductionPage,
+  NotificationsPage,
   ReportsPage,
   SettingsPage,
   TracePage,
   TrainingPage,
 } from './pages'
 
-const NAV = [
-  ['/', 'Dashboard'],
+const ACTIVITY_LINKS = [
+  ['/activities', 'Overview'],
   ['/farmers', 'Farmers'],
-  ['/farms', 'Farms'],
-  ['/compliance', 'Compliance'],
-  ['/inventory', 'Inventory'],
-  ['/production', 'Production'],
-  ['/traceability', 'Traceability'],
+  ['/farms', 'Land parcels'],
   ['/inspections', 'Inspections'],
+  ['/inventory', 'Inputs and seed'],
+  ['/production', 'Production and harvest'],
+  ['/traceability', 'Traceability'],
   ['/training', 'Training'],
-  ['/reports', 'Reports'],
-  ['/assistant', 'Assistant'],
-  ['/settings', 'Settings'],
+  ['/compliance', 'Certification'],
 ] as const
-
-const ROLE_LABELS: Record<string, string> = {
-  org_admin: 'Organization admin',
-  field_officer: 'Field officer',
-  manager: 'Farm manager',
-  farmer: 'Farmer',
-  inspector: 'Inspector',
-  certification_officer: 'Certification officer',
-}
 
 function usePath() {
   const [path, setPath] = useState(window.location.pathname)
@@ -55,12 +45,30 @@ function usePath() {
   return { path, go }
 }
 
-function Wordmark() {
+function FarmerArt() {
   return (
-    <span className="wordmark">
-      <span className="mark" aria-hidden="true" />
-      FarmMate
-    </span>
+    <svg viewBox="0 0 320 360" role="img" aria-label="Line drawing of a farmer">
+      <g fill="none" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M70 118c8-46 58-78 108-62 28 8 48 36 46 66" />
+        <path d="M58 132h196c8 18 4 36-10 46H74c-16-10-22-28-16-46z" />
+        <circle cx="156" cy="168" r="58" />
+        <path d="M132 166c6 8 14 8 20 0M176 166c6 8 14 8 20 0" />
+        <path d="M138 196c12 16 32 16 46 0" />
+        <path d="M92 230c18 18 40 28 64 28s48-10 66-28" />
+        <path d="M78 250c-16 28-18 70-8 96h52l10-46 18 46h46l16-52 22 52h40c8-30 2-68-16-96" />
+        <path d="M118 292h28v34c0 16-8 28-22 28s-22-12-22-28v-18" />
+        <path d="M206 248v78M96 248v70" />
+      </g>
+    </svg>
+  )
+}
+
+function AuthFrame({ children }: { children: ReactNode }) {
+  return (
+    <main className="auth-split">
+      <section className="auth-art"><FarmerArt /></section>
+      <section className="auth-panel">{children}</section>
+    </main>
   )
 }
 
@@ -82,11 +90,9 @@ function LoginScreen({ go }: { go: (path: string) => void }) {
   }
 
   return (
-    <main className="login-page">
-      <form className="login-card" onSubmit={(event) => void onSubmit(event)}>
-        <Wordmark />
-        <h1>Sign in</h1>
-        <p className="lede">Farm records, compliance, and traceability for your organization.</p>
+    <AuthFrame>
+      <form className="auth-form" onSubmit={(event) => void onSubmit(event)}>
+        <h1>Log In</h1>
         <label className="field">
           Email or FarmerID
           <input autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} required />
@@ -96,14 +102,11 @@ function LoginScreen({ go }: { go: (path: string) => void }) {
           <input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </label>
         {error ? <p className="alert error">{error}</p> : null}
-        <button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
-        <p className="muted">
-          <button type="button" className="text-link" onClick={() => go('/register')}>Register an organization</button>
-          {' · '}
-          <button type="button" className="text-link" onClick={() => go('/reset')}>Reset password</button>
-        </p>
+        <button type="submit" disabled={submitting}>{submitting ? 'Signing in…' : 'Log In'}</button>
+        <button type="button" className="text-link" onClick={() => go('/register')}>Not on FarmMate yet? Join now &gt;</button>
+        <button type="button" className="text-link" onClick={() => go('/reset')}>Reset password</button>
       </form>
-    </main>
+    </AuthFrame>
   )
 }
 
@@ -130,11 +133,10 @@ function RegisterScreen({ go }: { go: (path: string) => void }) {
   }
 
   return (
-    <main className="login-page">
-      <form className="login-card" onSubmit={(event) => void onSubmit(event)}>
-        <Wordmark />
-        <h1>Register an organization</h1>
-        <p className="lede">This creates the first administrator. Farmers are added after you sign in.</p>
+    <AuthFrame>
+      <form className="auth-form" onSubmit={(event) => void onSubmit(event)}>
+        <h1>Join FarmMate</h1>
+        <p className="lede">This creates the organization and its first administrator.</p>
         <label className="field">Organization<input name="organization_name" required /></label>
         <label className="field">First name<input name="first_name" required /></label>
         <label className="field">Last name<input name="last_name" /></label>
@@ -142,9 +144,9 @@ function RegisterScreen({ go }: { go: (path: string) => void }) {
         <label className="field">Password<input name="password" type="password" required /></label>
         {error ? <p className="alert error">{error}</p> : null}
         <button type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create organization'}</button>
-        <button type="button" className="text-link" onClick={() => go('/login')}>Back to sign in</button>
+        <button type="button" className="text-link" onClick={() => go('/login')}>Already onboard? Log in here &gt;</button>
       </form>
-    </main>
+    </AuthFrame>
   )
 }
 
@@ -176,9 +178,8 @@ function ResetScreen({ go }: { go: (path: string) => void }) {
   }
 
   return (
-    <main className="login-page">
-      <div className="login-card">
-        <Wordmark />
+    <AuthFrame>
+      <div className="auth-form">
         <h1>Reset password</h1>
         <p className="lede">If the email matches an account, the reset token is sent to that address.</p>
         <form onSubmit={(event) => void onRequest(event)} className="stack">
@@ -192,9 +193,9 @@ function ResetScreen({ go }: { go: (path: string) => void }) {
         </form>
         {message ? <p className="alert">{message}</p> : null}
         {error ? <p className="alert error">{error}</p> : null}
-        <button type="button" className="text-link" onClick={() => go('/login')}>Back to sign in</button>
+        <button type="button" className="text-link" onClick={() => go('/login')}>Back to log in</button>
       </div>
-    </main>
+    </AuthFrame>
   )
 }
 
@@ -203,7 +204,7 @@ function Shell() {
   const { path, go } = usePath()
 
   if (status === 'loading') {
-    return <main className="login-page"><p className="muted">Checking your session…</p></main>
+    return <main className="auth-panel"><p className="muted">Checking your session…</p></main>
   }
   if (status !== 'authenticated' || !me) {
     if (path === '/register') return <RegisterScreen go={go} />
@@ -212,8 +213,10 @@ function Shell() {
   }
 
   const role = me.organization?.role ?? ''
+  const activityOpen = ACTIVITY_LINKS.some(([href]) => href === path)
   let page = <DashboardPage />
-  if (path === '/farmers') page = <FarmersPage />
+  if (path === '/activities') page = <FarmActivitiesPage go={go} />
+  else if (path === '/farmers') page = <FarmersPage />
   else if (path === '/farms') page = <FarmsPage />
   else if (path === '/compliance') page = <CompliancePage role={role} />
   else if (path === '/inventory') page = <InventoryPage />
@@ -223,28 +226,37 @@ function Shell() {
   else if (path === '/training') page = <TrainingPage />
   else if (path === '/reports') page = <ReportsPage />
   else if (path === '/assistant') page = <AssistantPage />
+  else if (path === '/notifications') page = <NotificationsPage />
   else if (path === '/settings') page = <SettingsPage role={role} onRefresh={refresh} />
+
+  const hello = me.first_name || me.email
 
   return (
     <div className="shell">
       <aside className="sidebar">
-        <Wordmark />
+        <p className="hello">Hello {hello},</p>
         <nav>
-          {NAV.map(([href, label]) => (
-            <button key={href} type="button" className={path === href ? 'nav active' : 'nav'} onClick={() => go(href)}>
-              {label}
-            </button>
-          ))}
+          <button type="button" className={path === '/' ? 'nav active' : 'nav'} onClick={() => go('/')}>Dashboard</button>
+          <button type="button" className={path === '/reports' ? 'nav active' : 'nav'} onClick={() => go('/reports')}>Reports</button>
+          <button type="button" className={activityOpen ? 'nav active' : 'nav'} onClick={() => go('/activities')}>Farm Activities</button>
+          {activityOpen ? (
+            <div className="side-group">
+              {ACTIVITY_LINKS.map(([href, label]) => (
+                <button key={href} type="button" className={path === href ? 'nav-sub active' : 'nav-sub'} onClick={() => go(href)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <button type="button" className={path === '/assistant' ? 'nav active' : 'nav'} onClick={() => go('/assistant')}>FarmMate AI</button>
+          <button type="button" className={path === '/settings' ? 'nav active' : 'nav'} onClick={() => go('/settings')}>Settings</button>
         </nav>
+        <div className="sidebar-foot">
+          <button type="button" className={path === '/notifications' ? 'nav active' : 'nav'} onClick={() => go('/notifications')}>Notifications</button>
+          <button type="button" className="nav" onClick={() => void signOut()}>Sign Out</button>
+        </div>
       </aside>
       <div className="main">
-        <header className="topbar">
-          <span>
-            {me.organization?.name ?? 'No organization'}
-            {role ? ` · ${ROLE_LABELS[role] ?? role}` : ''}
-          </span>
-          <button type="button" className="ghost" onClick={() => void signOut()}>Sign out</button>
-        </header>
         <main className="content">{page}</main>
       </div>
     </div>

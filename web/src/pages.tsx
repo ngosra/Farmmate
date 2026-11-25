@@ -47,6 +47,14 @@ type Harvest = {
   harvested_on: string
   quantity_kg: string
 }
+type FarmRow = Farm & {
+  country: string
+  region: string
+  community: string
+  area_hectares: string | null
+}
+type CropRow = { id: string; name: string }
+type HarvestRow = { id: string; crop: string | null; quantity_kg: string }
 type Batch = {
   id: string
   code: string
@@ -101,105 +109,183 @@ function farmerName(farmers: Farmer[], id: string) {
 }
 
 export function DashboardPage() {
+  const { me } = useAuth()
   const { data, error, loading } = useLoad<DashboardData>('/api/v1/dashboard/')
+  const farms = useLoad<Page<FarmRow>>('/api/v1/farms/')
+  const crops = useLoad<Page<CropRow>>('/api/v1/crops/')
+  const harvests = useLoad<Page<HarvestRow>>('/api/v1/harvests/')
+  const farm = results(farms.data)[0]
+  const cropNames = new Map(results(crops.data).map((crop) => [crop.id, crop.name]))
+  const yieldTotals = new Map<string, number>()
+  for (const row of results(harvests.data)) {
+    const name = row.crop ? cropNames.get(row.crop) ?? 'Crop' : 'Unassigned'
+    yieldTotals.set(name, (yieldTotals.get(name) ?? 0) + Number(row.quantity_kg))
+  }
+  const yieldRows = [...yieldTotals.entries()]
+  const yieldMax = Math.max(...yieldRows.map(([, value]) => value), 1)
+  const certified = data?.certification.official.some((row) => row.status === 'certified') ?? false
+  const stages = data
+    ? [
+        ['Preparation', data.farms > 0],
+        ['Planting', data.recent_activities.some((row) => row.kind === 'planting')],
+        ['Harvest', Number(data.production.harvest_kg) > 0],
+        ['Certification', certified],
+      ] as const
+    : []
+  const statusLabel = !data || data.certification.readiness_percent === null
+    ? 'Not started'
+    : certified
+      ? 'Certified'
+      : 'Preparing'
+
   return (
     <>
       <PageHead
         title="Dashboard"
-        lede="Counts and readiness come from records in this organization. A readiness score is not a certificate."
+        lede={`${me?.organization?.name ?? 'Your organization'}. A readiness score is not a certificate.`}
       />
       <Banner error={error} />
       <LoadNote loading={loading}>
         {data ? (
-          <>
-            <section className="stats">
-              <article className="stat"><strong>{data.farmers}</strong><span>Farmers</span></article>
-              <article className="stat"><strong>{data.farms}</strong><span>Farms</span></article>
-              <article className="stat"><strong>{data.fields}</strong><span>Fields</span></article>
-              <article className="stat">
-                <strong>{num(data.production.harvest_kg)}</strong>
-                <span>Harvest kg</span>
+          <div className="dash-grid">
+            <div className="dash-main">
+              <article className="card soft">
+                <div className="stats">
+                  <article className="stat"><strong>Weather</strong><span>No feed connected</span></article>
+                  <article className="stat"><strong>Pest level</strong><span>No observation recorded</span></article>
+                </div>
               </article>
-            </section>
-            <div className="split">
               <article className="card">
-                <h2>Certification readiness</h2>
-                {data.certification.readiness_percent === null ? (
-                  <p>No checklist is open, so readiness is not calculated.</p>
-                ) : (
-                  <>
-                    <strong>{data.certification.readiness_percent}%</strong>
-                    <div className="meter" aria-hidden="true">
-                      <span style={{ width: `${data.certification.readiness_percent}%` }} />
-                    </div>
-                  </>
-                )}
-                <p className="muted">{data.certification.message}</p>
-                <p className="muted">
-                  Verified weight {data.certification.verified_weight}, declared{' '}
-                  {data.certification.declared_weight}, missing {data.certification.missing_weight}.
+                <h2>Certification performance</h2>
+                <div className="steps" aria-hidden="true">
+                  {stages.map(([label, done], index) => (
+                    <span key={label} style={{ display: 'contents' }}>
+                      <span className={done ? 'step on' : 'step'} />
+                      {index < stages.length - 1 ? <span className={done ? 'step-line on' : 'step-line'} /> : null}
+                    </span>
+                  ))}
+                </div>
+                <div className="step-labels">
+                  {stages.map(([label]) => <span key={label}>{label}</span>)}
+                </div>
+                <p>
+                  <strong>{statusLabel}</strong>
+                  {data.certification.readiness_percent === null
+                    ? ' · readiness is not calculated'
+                    : ` · ${data.certification.readiness_percent}% readiness`}
                 </p>
-                <h3>Official decisions</h3>
+                <p className="muted">{data.certification.message}</p>
                 {data.certification.official.length === 0 ? (
                   <p>No official certified decision is recorded.</p>
                 ) : (
                   data.certification.official.map((row) => (
-                    <p key={row.id}>
-                      <Badge value={row.status} /> {row.standard} {row.certificate_number}{' '}
-                      {row.farmer ? `· ${row.farmer}` : ''}
-                    </p>
+                    <p key={row.id}><Badge value={row.status} /> {row.standard} {row.certificate_number}</p>
                   ))
                 )}
               </article>
               <article className="card">
-                <h2>Next records to add</h2>
-                {data.recommendations.length === 0 ? (
-                  <p>Nothing is flagged from the current records.</p>
+                <h2>Yield from harvest records</h2>
+                {yieldRows.length === 0 ? (
+                  <p className="muted">No harvest quantity is recorded.</p>
                 ) : (
-                  data.recommendations.map((row) => (
-                    <p key={row.text}>
-                      <Badge value={row.basis} /> {row.text}
+                  yieldRows.map(([name, value]) => (
+                    <div className="yield-row" key={name}>
+                      <span>{name}</span>
+                      <div className="yield-bar"><span style={{ width: `${(value / yieldMax) * 100}%` }} /></div>
+                      <strong>{num(value)}</strong>
+                    </div>
+                  ))
+                )}
+                <p className="muted">Kilograms already stored. This is not a forecast.</p>
+              </article>
+              <article className="card" style={{ background: '#067a5e', color: 'white' }}>
+                <h2 style={{ color: 'white' }}>NDVI</h2>
+                {data.ndvi.length === 0 ? (
+                  <p>No observations are stored. Satellite readings: {data.satellite_observations}. Nothing is filled in.</p>
+                ) : (
+                  data.ndvi.map((field) => (
+                    <p key={field.field_name}>
+                      {field.field_name}: {field.points.map((point) => `${point.date} ${point.ndvi_mean} (${point.source})`).join(', ')}
                     </p>
                   ))
                 )}
               </article>
             </div>
-            <article className="card">
-              <h2>Recent activity</h2>
-              {data.recent_activities.length === 0 ? (
-                <Empty title="No activities yet" body="Planting, spraying, and other work will be listed here." />
-              ) : (
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>Date</th><th>Farm</th><th>Kind</th><th>Notes</th></tr></thead>
-                    <tbody>
-                      {data.recent_activities.map((row) => (
-                        <tr key={row.id}>
-                          <td>{row.occurred_on}</td><td>{row.farm}</td><td>{row.kind}</td><td>{row.notes}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </article>
-            <article className="card">
-              <h2>NDVI</h2>
-              {data.ndvi.length === 0 ? (
-                <p>
-                  No observations are stored. Satellite readings: {data.satellite_observations}. FarmMate
-                  does not invent vegetation data.
-                </p>
-              ) : (
-                data.ndvi.map((field) => (
-                  <p key={field.field_name}>
-                    {field.field_name}:{' '}
-                    {field.points.map((point) => `${point.date} ${point.ndvi_mean} (${point.source})`).join(', ')}
-                  </p>
-                ))
-              )}
-            </article>
-          </>
+            <div className="dash-side">
+              <article className="card soft">
+                <h2>Farm basic information</h2>
+                {farm ? (
+                  <>
+                    <p><strong>{farm.name}</strong> · {farm.code}</p>
+                    <p>{[farm.community, farm.region, farm.country].filter(Boolean).join(', ') || 'No location text recorded'}</p>
+                    <p>{farm.area_hectares ?? '—'} hectares · {farm.field_count} fields · {farm.status}</p>
+                  </>
+                ) : (
+                  <p>No farm is recorded yet.</p>
+                )}
+              </article>
+              <article className="card">
+                <h2>Records still missing</h2>
+                {data.recommendations.length === 0 ? (
+                  <p>Nothing is flagged from the current records.</p>
+                ) : (
+                  data.recommendations.map((row) => (
+                    <p key={row.text}><Badge value={row.basis} /> {row.text}</p>
+                  ))
+                )}
+              </article>
+            </div>
+          </div>
+        ) : null}
+      </LoadNote>
+    </>
+  )
+}
+
+const ACTIVITY_GROUPS = [
+  ['Farmers', '/farmers', 'People registered in this organization'],
+  ['Land parcels', '/farms', 'Farms, field boundaries, and land use'],
+  ['Inspections', '/inspections', 'Visits, checks, and corrective notes'],
+  ['Inputs and seed', '/inventory', 'Stock, approvals, and planting material'],
+  ['Production and harvest', '/production', 'Activities, harvest quantities, and storage'],
+  ['Traceability', '/traceability', 'Batches, movement, and QR codes'],
+  ['Training', '/training', 'Sessions and attendance'],
+  ['Certification', '/compliance', 'Checklists and official decisions'],
+] as const
+
+export function FarmActivitiesPage({ go }: { go: (path: string) => void }) {
+  return (
+    <>
+      <PageHead title="Farm Activities" lede="The same records as the previous FarmMate menu. Each card opens the live list." />
+      <div className="hub">
+        {ACTIVITY_GROUPS.map(([title, href, body]) => (
+          <button key={href} type="button" onClick={() => go(href)}>
+            <span><strong>{title}</strong><br /><span className="muted">{body}</span></span>
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+export function NotificationsPage() {
+  const { data, error, loading } = useLoad<DashboardData>('/api/v1/dashboard/')
+  return (
+    <>
+      <PageHead title="Notifications" lede="These come from open checklists, inspections, and corrective actions." />
+      <Banner error={error} />
+      <LoadNote loading={loading}>
+        {data ? (
+          <article className="card">
+            {data.recommendations.length === 0 && data.upcoming_inspections.length === 0 && data.pending_actions.length === 0 ? (
+              <Empty title="No notifications" body="Nothing is waiting in the records you can see." />
+            ) : null}
+            {data.recommendations.map((row) => <p key={row.text}><Badge value={row.basis} /> {row.text}</p>)}
+            {data.upcoming_inspections.map((row) => (
+              <p key={row.id}>Inspection at {row.farm} on {row.scheduled_for}</p>
+            ))}
+            {data.pending_actions.map((row) => <p key={row.id}>{row.title}{row.due_on ? ` · due ${row.due_on}` : ''}</p>)}
+          </article>
         ) : null}
       </LoadNote>
     </>
@@ -1118,9 +1204,9 @@ export function AssistantPage() {
         <button type="submit">Ask</button>
       </form>
       {answer ? (
-        <article className="card">
+        <article className="card chat-log">
           <h2>From your records</h2>
-          <p>{answer}</p>
+          <p className="bubble assistant">{answer}</p>
           <div className="stack">
             {statements.map((row) => (
               <p key={`${row.kind}-${row.text}`}><Badge value={row.kind} /> {row.text}</p>
