@@ -11,7 +11,7 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ("email", "farmer_id")
     filter_horizontal = ("groups", "user_permissions")
     fieldsets = (
-        (None, {"fields": ("email", "farmer_id", "password")}),
+        (None, {"fields": ("email", "farmer_id", "first_name", "last_name", "phone", "password")}),
         (
             "Permissions",
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},

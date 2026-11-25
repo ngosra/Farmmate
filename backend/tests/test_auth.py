@@ -55,21 +55,35 @@ def test_wrong_password_is_rejected(api, user_a):
     assert "access" not in response.data
 
 
-def test_there_is_no_public_register_route(api):
+def test_organization_registration_creates_an_admin(api):
     before = User.objects.count()
     register = api.post(
         "/api/v1/auth/register/",
-        {"identifier": "new@farmmate.test", "password": PASSWORD},
+        {
+            "organization_name": "New Cooperative",
+            "email": "new@farmmate.test",
+            "password": PASSWORD,
+            "first_name": "Nia",
+        },
         format="json",
     )
+    assert register.status_code == 200
+    assert "access" in register.data
+    assert User.objects.count() == before + 1
+    me = api.get(
+        "/api/v1/auth/me/",
+        HTTP_AUTHORIZATION=f"Bearer {register.data['access']}",
+    )
+    assert me.status_code == 200
+    assert me.data["organization"]["name"] == "New Cooperative"
+    assert me.data["organization"]["role"] == "org_admin"
+    assert me.data["first_name"] == "Nia"
     users = api.post(
         "/api/v1/users/",
-        {"email": "new@farmmate.test", "password": PASSWORD},
+        {"email": "other@farmmate.test", "password": PASSWORD},
         format="json",
     )
-    assert register.status_code == 404
     assert users.status_code == 404
-    assert User.objects.count() == before
 
 
 def test_unauthenticated_me_is_rejected(api):

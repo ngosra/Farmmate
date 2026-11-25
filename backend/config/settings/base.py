@@ -31,7 +31,7 @@ def database_from_url(url: str) -> dict:
             path = url[len("sqlite:///") :]
             if path and path != ":memory:":
                 name = path
-        return {"ENGINE": "django.db.backends.sqlite3", "NAME": name}
+        return {"ENGINE": "django.contrib.gis.db.backends.spatialite", "NAME": name}
 
     parsed = urlparse(url)
     if parsed.scheme not in {"postgres", "postgresql", "postgis"}:
@@ -67,6 +67,18 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "accounts",
     "organizations",
+    "farmers",
+    "farms",
+    "crops",
+    "production",
+    "inventory",
+    "certification",
+    "inspections",
+    "training",
+    "traceability",
+    "ndvi",
+    "reports",
+    "ai",
 ]
 
 MIDDLEWARE = [
@@ -101,6 +113,12 @@ TEMPLATES = [
 
 DATABASES = {"default": database_from_url(env("DATABASE_URL", "") or "")}
 
+_spatialite = env("SPATIALITE_LIBRARY_PATH")
+if _spatialite:
+    SPATIALITE_LIBRARY_PATH = _spatialite
+elif Path("/usr/lib/x86_64-linux-gnu/mod_spatialite.so").exists():
+    SPATIALITE_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu/mod_spatialite.so"
+
 AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -127,6 +145,8 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "login": "10/min",
+        "register": "5/min",
+        "password_reset": "5/min",
     },
 }
 
@@ -156,3 +176,24 @@ CACHES = {
         "LOCATION": "farmmate",
     }
 }
+
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "FarmMate <noreply@localhost>")
+FRONTEND_URL = env("FRONTEND_URL", "http://127.0.0.1:5173")
+
+CELERY_BROKER_URL = env("REDIS_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
+
+AI_API_KEY = env("AI_API_KEY", "") or ""
+AI_API_BASE = env("AI_API_BASE", "https://api.openai.com/v1")
+AI_MODEL = env("AI_MODEL", "gpt-4o-mini")
+SATELLITE_PROVIDER = env("SATELLITE_PROVIDER", "none")

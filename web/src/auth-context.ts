@@ -8,7 +8,15 @@ export type AuthState = {
   me: Me | null
   error: string | null
   signIn: (identifier: string, password: string) => Promise<void>
+  signUp: (payload: {
+    organization_name: string
+    email: string
+    password: string
+    first_name: string
+    last_name: string
+  }) => Promise<void>
   signOut: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthState | null>(null)

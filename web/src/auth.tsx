@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { loginRequest, logoutRequest, refreshSession, type Me } from './api'
+import { fetchMe, loginRequest, logoutRequest, refreshSession, registerRequest, type Me } from './api'
 import { AuthContext, type AuthState, type AuthStatus } from './auth-context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -40,10 +40,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw err
         }
       },
+      async signUp(payload) {
+        setError(null)
+        try {
+          const next = await registerRequest(payload)
+          setMe(next)
+          setStatus('authenticated')
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Could not create the organization.'
+          setError(message)
+          throw err
+        }
+      },
       async signOut() {
         await logoutRequest()
         setMe(null)
         setStatus('anonymous')
+      },
+      async refresh() {
+        setMe(await fetchMe())
       },
     }),
     [status, me, error],
